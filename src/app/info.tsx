@@ -15,6 +15,10 @@ import {
 import { useHousehold } from '@/components/household-gate';
 import { supabase } from '@/lib/supabase';
 
+const unsafePunishmentPattern = /\b(execut\w*|kill\w*|assault\w*|hit\w*|beat\w*|injur\w*|harm\w*|hurt\w*|violence|sleep\w*|rent|subsid\w*|fine|pay(?:ment)?|money|humiliat\w*|sham\w*|food|water|depriv\w*|lock ?out|exclu\w*|threat\w*|sexual|illegal|danger\w*|physical\w*|punch\w*|slap\w*|kick\w*|coerc\w*|starv\w*|evict\w*|homeless|camp\w*|overnight)\b/i;
+// Temporarily disabled: custom punishments no longer have to match a chore vocabulary.
+// const chorePunishmentPattern = /\b(?:chores?|clean(?:ing|ed)?|wash(?:ing|ed)?|dishes?|bins?|rubbish|recycling|laundry|laundering|cook(?:ing)?|meals?|tidy(?:ing)?|sweep(?:ing)?|vacuum(?:ing)?|mop(?:ping|ped)?|shared spaces?|common areas?|household tasks?|rota|gardening?|lawn|wiping|organis(?:e|ing|ation)|organize|declutter(?:ing)?)\b/i;
+
 type Member = { user_id: string };
 type Profile = { id: string; display_name: string };
 type Trial = {
@@ -104,6 +108,11 @@ export default function InfoScreen() {
 
   async function addPunishment() {
     if (!newTitle.trim() || !newDetail.trim()) return;
+    const punishmentText = `${newTitle.trim()} ${newDetail.trim()}`;
+    if (unsafePunishmentPattern.test(punishmentText)) {
+      setError('Custom options cannot involve harm, money, sleeping arrangements, humiliation, or exclusion.');
+      return;
+    }
     setBusy(true);
     setError(null);
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -195,7 +204,7 @@ export default function InfoScreen() {
 
       <View style={styles.sectionBlock}>
         <SectionHeading title="Punishment scale" detail="1 · light — 10 · serious" />
-        <Text style={styles.scaleIntro}>The AI Judge chooses from this household list after deciding a case. Names and descriptions are shared with household members.</Text>
+        <Text style={styles.scaleIntro}>The AI Judge chooses from this household list after deciding a case. Custom options may be household-specific, but harmful or coercive punishments are excluded.</Text>
         <Pressable
           accessibilityRole="button"
           onPress={() => setAddFormOpen(!addFormOpen)}
@@ -220,7 +229,7 @@ export default function InfoScreen() {
                 </Pressable>
               ))}
             </View>
-            <Text style={styles.editorNote}>Keep options safe, voluntary, and focused on reasonable household tasks.</Text>
+            <Text style={styles.editorNote}>Keep custom options reasonable and household-appropriate. Harm, money, sleeping arrangements, humiliation, and exclusion are not allowed.</Text>
             <ActionButton
               disabled={busy || !newTitle.trim() || !newDetail.trim()}
               label={busy ? 'Saving…' : 'Add to punishment list'}

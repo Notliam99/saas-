@@ -1,0 +1,2 @@
+[functions.judge-case]
+verify_jwt = true

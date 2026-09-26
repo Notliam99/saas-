@@ -56,6 +56,7 @@ export default function CourtScreen() {
   const [defensePhotos, setDefensePhotos] = useState<EvidencePhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [judgingCaseId, setJudgingCaseId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [evidenceImages, setEvidenceImages] = useState<CaseEvidenceImage[]>([]);
@@ -161,7 +162,6 @@ export default function CourtScreen() {
     ? selectedAccusedId
     : availableAccused[0]?.user_id ?? '';
   const myPendingCase = cases.find((item) => item.accused_id === userId && item.status === 'awaiting_defense');
-  const myReadyCase = cases.find((item) => item.accused_id === userId && item.status === 'ready_for_judgment');
 
   async function fileCase() {
     if (!userId || !accusedId || !allegation.trim() || !prosecutorStatement.trim()) return;
@@ -269,6 +269,38 @@ export default function CourtScreen() {
     setBusy(false);
   }
 
+  async function judgeCase(caseId: string) {
+    if (busy || judgingCaseId) return;
+    setBusy(true);
+    setJudgingCaseId(caseId);
+    setError(null);
+    setNotice(null);
+    try {
+      const { data: judgeResult, error: judgeError } = await supabase.functions.invoke('judge-case', { body: { caseId } });
+      if (judgeError) {
+        let message = judgeError.message;
+        try {
+          const response = judgeError.context as Response;
+          const payload = await response.clone().json();
+          if (typeof payload?.error === 'string') message = payload.error;
+        } catch {
+          // Use the SDK error message when the function response has no JSON body.
+        }
+        setError(message || 'The AI Judge could not complete this case. Please try again.');
+        return;
+      }
+      setNotice(judgeResult?.reason === 'unreadable_ai_response'
+        ? 'The AI response was unreadable, so the case was recorded as a mistrial because it was too severe to settle automatically.'
+        : 'The AI Judge has reached a final verdict.');
+      setReload((value) => value + 1);
+    } catch {
+      setError('The AI Judge could not complete this case. Please try again.');
+    } finally {
+      setBusy(false);
+      setJudgingCaseId(null);
+    }
+  }
+
   if (loading) {
     return <Screen><ActivityIndicator color={Palette.forest} style={styles.loader} /></Screen>;
   }
@@ -307,12 +339,15 @@ export default function CourtScreen() {
 
       {myPendingCase ? (
         <View style={styles.sectionBlock}>
-          <SectionHeading title="Your notice" detail="Your response is due before judgment" />
+          <SectionHeading title="Your notice" detail="A defense is required before judgment" />
           <CaseCard
             item={myPendingCase}
             defenses={defenses}
             evidenceImages={evidenceImages}
             nameFor={(id) => profileById.get(id) ?? 'Flatmate'}
+            onJudge={judgeCase}
+            judging={false}
+            disabled={busy}
           />
           <Card style={styles.formCard}>
             {defenseForPending ? (
@@ -331,15 +366,6 @@ export default function CourtScreen() {
             )}
           </Card>
         </View>
-      ) : null}
-
-      {myReadyCase ? (
-        <Card style={styles.readyCard}>
-          <Pill tone="green">READY FOR AI</Pill>
-          <Text style={styles.cardTitle}>Both sides are on the record</Text>
-          <Text style={styles.bodyText}>No verdict has been issued. The server-side AI Judge is the next connection needed for a final ruling.</Text>
-          <CaseCard item={myReadyCase} defenses={defenses} evidenceImages={evidenceImages} nameFor={(id) => profileById.get(id) ?? 'Flatmate'} />
-        </Card>
       ) : null}
 
       <View style={styles.sectionBlock}>
@@ -403,7 +429,16 @@ export default function CourtScreen() {
       <View style={styles.sectionBlock}>
         <SectionHeading title="Household cases" detail={`${cases.length} total`} />
         {cases.length ? cases.map((item) => (
-          <CaseCard key={item.id} item={item} defenses={defenses} evidenceImages={evidenceImages} nameFor={(id) => profileById.get(id) ?? 'Flatmate'} />
+          <CaseCard
+            key={item.id}
+            item={item}
+            defenses={defenses}
+            evidenceImages={evidenceImages}
+            nameFor={(id) => profileById.get(id) ?? 'Flatmate'}
+            onJudge={judgeCase}
+            judging={judgingCaseId === item.id}
+            disabled={busy && judgingCaseId !== item.id}
+          />
         )) : (
           <Card><Text style={styles.bodyText}>No cases have been filed in this household.</Text></Card>
         )}
@@ -417,11 +452,17 @@ function CaseCard({
   defenses,
   evidenceImages,
   nameFor,
+  onJudge,
+  judging,
+  disabled,
 }: {
   item: CourtCase;
   defenses: Defense[];
   evidenceImages: CaseEvidenceImage[];
   nameFor: (id: string) => string;
+  onJudge: (caseId: string) => void;
+  judging: boolean;
+  disabled: boolean;
 }) {
   const defense = defenses.find((entry) => entry.case_id === item.id);
   const prosecutionPhotos = evidenceImages.filter((image) => image.case_id === item.id && image.evidence_side === 'prosecution');
@@ -456,6 +497,16 @@ function CaseCard({
       ) : null}
       {item.verdict_summary ? <Text style={styles.bodyText}>Verdict: {item.verdict_summary}</Text> : null}
       {item.punishment_details ? <Text style={styles.punishmentText}>Punishment: {item.punishment_details}</Text> : null}
+      {item.status === 'ready_for_judgment' ? (
+        <View style={styles.judgeAction}>
+          <Text style={styles.bodyText}>Running the AI Judge sends the case statements and private photos to OpenAI for review.</Text>
+          <ActionButton
+            disabled={disabled || judging}
+            label={judging ? 'Judging…' : 'Send to AI Judge'}
+            onPress={() => onJudge(item.id)}
+          />
+        </View>
+      ) : null}
     </Card>
   );
 }
@@ -530,6 +581,7 @@ const styles = StyleSheet.create({
   storedPhoto: { width: 104, height: 88, borderRadius: 12, backgroundColor: Palette.line },
   punishmentText: { color: Palette.forest, fontSize: 11, fontWeight: '800' },
   readyCard: { gap: 10, borderColor: '#C9DED2', backgroundColor: '#F3F8F4' },
+  judgeAction: { gap: 8, paddingTop: 3 },
   cardTitle: { color: Palette.ink, fontSize: 15, fontWeight: '900' },
   errorCard: { backgroundColor: Palette.roseSoft, borderColor: Palette.roseSoft },
   errorText: { color: Palette.rose, fontSize: 12, lineHeight: 18 },

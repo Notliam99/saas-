@@ -1,115 +1,85 @@
-import {
-  Tabs,
-  TabList,
-  TabTrigger,
-  TabSlot,
-  TabTriggerSlotProps,
-  TabListProps,
-} from 'expo-router/ui';
+import { TabList, TabSlot, TabTrigger, Tabs, TabTriggerSlotProps } from 'expo-router/ui';
 import { SymbolView } from 'expo-symbols';
-import { Pressable, useColorScheme, View, StyleSheet } from 'react-native';
+import type { ComponentProps } from 'react';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
-import { ExternalLink } from './external-link';
-import { ThemedText } from './themed-text';
-import { ThemedView } from './themed-view';
-
-import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Palette } from '@/components/flat-judge-ui';
 
 export default function AppTabs() {
   return (
-    <Tabs>
-      <TabSlot style={{ height: '100%' }} />
-      <TabList asChild>
-        <CustomTabList>
-          <TabTrigger name="home" href="/" asChild>
-            <TabButton>Home</TabButton>
-          </TabTrigger>
-          <TabTrigger name="explore" href="/explore" asChild>
-            <TabButton>Explore</TabButton>
-          </TabTrigger>
-        </CustomTabList>
+    <Tabs style={{ flex: 1, backgroundColor: Palette.paper }}>
+      <TabSlot style={{ flex: 1, marginBottom: 82 }} />
+      <TabList style={styles.tabList}>
+        <TabTrigger name="profiles" href="/" asChild>
+          <TabButton icon={{ ios: 'person.2.fill', android: 'group', web: 'group' }}>Profiles</TabButton>
+        </TabTrigger>
+        <TabTrigger name="court" href="/explore" asChild>
+          <TabButton icon={{ ios: 'hammer.fill', android: 'gavel', web: 'gavel' }}>Court</TabButton>
+        </TabTrigger>
+        <TabTrigger name="info" href="/info" asChild>
+          <TabButton icon={{ ios: 'text.book.closed.fill', android: 'menu_book', web: 'menu_book' }}>Info</TabButton>
+        </TabTrigger>
       </TabList>
     </Tabs>
   );
 }
 
-export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
+type TabSymbolName = ComponentProps<typeof SymbolView>['name'];
+
+function TabButton({
+  children,
+  icon,
+  isFocused,
+  ...props
+}: TabTriggerSlotProps & {
+  icon: TabSymbolName;
+}) {
   return (
-    <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
-      <ThemedView
-        type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
-        style={styles.tabButtonView}>
-        <ThemedText type="small" themeColor={isFocused ? 'text' : 'textSecondary'}>
-          {children}
-        </ThemedText>
-      </ThemedView>
+    <Pressable
+      {...props}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: isFocused }}
+      style={({ pressed }) => [styles.tabButton, pressed && styles.pressed]}>
+      <SymbolView
+        name={icon}
+        size={19}
+        tintColor={isFocused ? Palette.forest : Palette.muted}
+        style={styles.tabIcon}
+      />
+      <Text style={[styles.tabButtonText, isFocused && styles.tabButtonTextSelected]}>{children}</Text>
     </Pressable>
   );
 }
 
-export function CustomTabList(props: TabListProps) {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
-
-  return (
-    <View {...props} style={styles.tabListContainer}>
-      <ThemedView type="backgroundElement" style={styles.innerContainer}>
-        <ThemedText type="smallBold" style={styles.brandText}>
-          Expo Starter
-        </ThemedText>
-
-        {props.children}
-
-        <ExternalLink href="https://docs.expo.dev" asChild>
-          <Pressable style={styles.externalPressable}>
-            <ThemedText type="link">Docs</ThemedText>
-            <SymbolView
-              tintColor={colors.text}
-              name={{ ios: 'arrow.up.right.square', web: 'link' }}
-              size={12}
-            />
-          </Pressable>
-        </ExternalLink>
-      </ThemedView>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  tabListContainer: {
+  tabList: {
     position: 'absolute',
-    width: '100%',
-    padding: Spacing.three,
+    right: 16,
+    bottom: 10,
+    left: 16,
+    maxWidth: 520,
+    marginHorizontal: 'auto',
+    minHeight: 68,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 5,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: Palette.line,
+    backgroundColor: Palette.card,
+    boxShadow: '0 4px 18px rgba(29, 41, 38, 0.10)',
+  },
+  tabButton: {
+    flex: 1,
+    minHeight: 56,
+    flexDirection: 'column',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    flexDirection: 'row',
+    gap: 3,
+    borderRadius: 14,
   },
-  innerContainer: {
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.five,
-    borderRadius: Spacing.five,
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexGrow: 1,
-    gap: Spacing.two,
-    maxWidth: MaxContentWidth,
-  },
-  brandText: {
-    marginRight: 'auto',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  tabButtonView: {
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.three,
-  },
-  externalPressable: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: Spacing.one,
-    marginLeft: Spacing.three,
-  },
+  tabIcon: { width: 21, height: 21 },
+  tabButtonText: { color: Palette.muted, fontSize: 11, fontWeight: '700' },
+  tabButtonTextSelected: { color: Palette.forest, fontWeight: '900' },
+  pressed: { opacity: 0.7 },
 });

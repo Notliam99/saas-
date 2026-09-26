@@ -81,6 +81,27 @@ export default {
     if (authError || !authData.user) return jsonResponse({ error: 'Sign in to use the AI Judge.' }, 401);
 
     const admin = context.supabaseAdmin;
+    const dispatchCaseNotifications = async () => {
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      const supabaseUrl = Deno.env.get('SUPABASE_URL');
+      if (!serviceRoleKey || !supabaseUrl) return;
+
+      try {
+        const response = await fetch(`${supabaseUrl}/functions/v1/dispatch-case-notifications`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${serviceRoleKey}`,
+            apikey: serviceRoleKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: 'dispatch', caseId }),
+        });
+        if (!response.ok) console.error('Case notification dispatch failed:', response.status);
+      } catch (error) {
+        console.error('Case notification dispatch could not be reached:', error);
+      }
+    };
+
     const finalizeUnreadableMistrial = async () => {
       const update = await admin.from('cases').update({
         status: 'mistrial',
@@ -92,6 +113,7 @@ export default {
 
       if (update.error) return jsonResponse({ error: 'The AI response was unreadable, and the mistrial could not be saved. The case remains ready for judgment.' }, 500);
       if (!update.data) return jsonResponse({ error: 'This case has already been judged. Refresh the court record.' }, 409);
+      await dispatchCaseNotifications();
       return jsonResponse({ ok: true, status: 'mistrial', reason: 'unreadable_ai_response' });
     };
 
@@ -115,22 +137,31 @@ export default {
       return jsonResponse({ error: 'A case can only be judged after the accused has submitted a defense.' }, 409);
     }
 
-    const [defenseResult, choreResult, historyResult, punishmentResult, evidenceResult] = await Promise.all([
+    const [defenseResult, choreResult, historyResult, punishmentResult, hiddenDefaultResult, overrideResult, evidenceResult] = await Promise.all([
       admin.from('case_defenses').select('defendant_id, response, evidence_notes').eq('case_id', caseId).maybeSingle(),
       admin.from('chores').select('title, schedule').eq('household_id', courtCase.household_id).eq('assigned_to', courtCase.accused_id).eq('is_active', true),
       admin.from('cases').select('charge, verdict_summary, punishment_details, decided_at').eq('household_id', courtCase.household_id).eq('accused_id', courtCase.accused_id).eq('status', 'guilty').order('decided_at', { ascending: false }).limit(30),
       admin.from('punishments').select('id, household_id, is_default, punishment_tier, title, details').or(`household_id.is.null,household_id.eq.${courtCase.household_id}`),
+      admin.from('household_hidden_default_punishments').select('punishment_id').eq('household_id', courtCase.household_id),
+      admin.from('household_default_punishment_overrides').select('punishment_id, punishment_tier, title, details').eq('household_id', courtCase.household_id),
       admin.from('case_evidence').select('id, evidence_side, storage_path').eq('case_id', caseId).order('created_at', { ascending: true }),
     ]);
 
     if (defenseResult.error || !defenseResult.data || defenseResult.data.defendant_id !== courtCase.accused_id) {
       return jsonResponse({ error: 'The accused must submit a defense before the AI Judge can review this case.' }, 409);
     }
-    if (choreResult.error || historyResult.error || punishmentResult.error || evidenceResult.error) {
+    if (choreResult.error || historyResult.error || punishmentResult.error || hiddenDefaultResult.error || evidenceResult.error) {
       return jsonResponse({ error: 'Could not load all of the household record for judgment.' }, 500);
     }
 
+    const hiddenDefaultIds = new Set((hiddenDefaultResult.data ?? []).map((item) => item.punishment_id));
+    const overridesById = new Map((overrideResult.data ?? []).map((item) => [item.punishment_id, item]));
     const allowedPunishments = (punishmentResult.data ?? [])
+      .filter((option) => !option.is_default || !hiddenDefaultIds.has(option.id))
+      .map((option) => {
+        const override = option.is_default ? overridesById.get(option.id) : undefined;
+        return override ? { ...option, ...override } : option;
+      })
       .filter((option) => isAllowedPunishment(option))
       .map((option) => ({
         id: option.id,
@@ -269,6 +300,7 @@ export default {
     if (update.error) return jsonResponse({ error: 'The verdict could not be saved. The case remains ready for judgment.' }, 500);
     if (!update.data) return jsonResponse({ error: 'This case has already been judged. Refresh the court record.' }, 409);
 
+    await dispatchCaseNotifications();
     return jsonResponse({ ok: true, status: verdict.verdict });
   }),
 };

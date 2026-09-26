@@ -4,7 +4,6 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import {
   Card,
   Divider,
-  Initials,
   PageHeader,
   Palette,
   Pill,
@@ -12,6 +11,7 @@ import {
   SectionHeading,
 } from '@/components/flat-judge-ui';
 import { useHousehold } from '@/components/household-gate';
+import { Typography } from '@/constants/typography';
 import { supabase } from '@/lib/supabase';
 
 type Member = { user_id: string; role: string };
@@ -27,8 +27,6 @@ type CaseRecord = {
   punishment_details: string | null;
   created_at: string;
 };
-
-const avatarColors = ['#E9DFCF', '#DCE6DD', '#E6DDE8', '#DCE5EC', '#F0DFD8'];
 
 export default function ProfilesScreen() {
   const household = useHousehold();
@@ -85,7 +83,6 @@ export default function ProfilesScreen() {
           setProfiles(profileResult.data ?? []);
           setChores(choreResult.data ?? []);
           setCases(caseResult.data ?? []);
-          setExpandedId((current) => current ?? nextMembers[0]?.user_id ?? null);
         }
         setLoading(false);
       }
@@ -106,24 +103,23 @@ export default function ProfilesScreen() {
   return (
     <Screen>
       <PageHeader
-        eyebrow="Household ledger"
         title="Profiles"
-        subtitle="Chores and court records for the people in your household."
+        subtitle="Meet everyone and see case history by person."
         accessory={
           <Pressable accessibilityRole="button" onPress={() => { void signOut(); }} style={styles.signOutButton}>
-            <Text style={styles.signOutText}>SIGN OUT</Text>
+            <Text style={styles.signOutText}>Sign out</Text>
           </Pressable>
         }
       />
 
       <Card style={styles.houseCard}>
-        <View style={styles.houseIcon}><Text style={styles.houseIconText}>⌂</Text></View>
+        <View style={styles.houseIcon}><Text style={styles.houseIconText}>{household.name.slice(0, 1).toUpperCase()}</Text></View>
         <View style={styles.houseCopy}>
           <Text style={styles.houseTitle}>{household.name}</Text>
-          <Text style={styles.houseDescription}>Invite code · {household.inviteCode}</Text>
+          <Text style={styles.houseDescription}>Invite code: {household.inviteCode}</Text>
         </View>
         <View style={styles.houseStat}>
-          <Text style={styles.statNumber}>{String(activeCases.length).padStart(2, '0')}</Text>
+          <Text style={styles.statNumber}>{activeCases.length}</Text>
           <Text style={styles.statCaption}>open cases</Text>
         </View>
       </Card>
@@ -131,20 +127,18 @@ export default function ProfilesScreen() {
       <View style={styles.sectionBlock}>
         <SectionHeading title="Flatmates" detail={`${members.length} ${members.length === 1 ? 'member' : 'members'}`} />
         {loading ? (
-          <ActivityIndicator color={Palette.forest} style={styles.loader} />
+          <ActivityIndicator color={Palette.accent} style={styles.loader} />
         ) : error ? (
           <Card><Text style={styles.errorText}>Could not load household profiles: {error}</Text></Card>
         ) : profiles.length ? (
           <View style={styles.profileList}>
-            {members.map((member, index) => {
+            {members.map((member) => {
               const person = profiles.find((profile) => profile.id === member.user_id);
               if (!person) return null;
               const personChores = chores.filter((chore) => chore.assigned_to === person.id);
-              const personCases = cases.filter((item) => item.accused_id === person.id);
-              const convictions = personCases.filter((item) => item.status === 'guilty').length;
+              const convictionCases = cases.filter((item) => item.accused_id === person.id && item.status === 'guilty');
+              const convictions = convictionCases.length;
               const expanded = expandedId === person.id;
-              const initials = person.display_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('');
-
               return (
                 <Pressable
                   accessibilityRole="button"
@@ -154,7 +148,6 @@ export default function ProfilesScreen() {
                   style={({ pressed }) => [styles.profilePressable, pressed && styles.pressed]}>
                   <Card style={styles.profileCard}>
                     <View style={styles.profileTop}>
-                      <Initials label={initials || '?'} color={avatarColors[index % avatarColors.length]} />
                       <View style={styles.profileIdentity}>
                         <Text style={styles.name}>{person.display_name}</Text>
                         <Text style={styles.role}>{member.role}</Text>
@@ -165,17 +158,19 @@ export default function ProfilesScreen() {
                       </View>
                     </View>
 
-                    <View style={styles.choreRow}>
-                      {personChores.length ? personChores.map((chore) => (
+                    {personChores.length ? (
+                      <View style={styles.choreRow}>
+                        {personChores.map((chore) => (
                         <Pill key={chore.id}>{chore.title}</Pill>
-                      )) : <Text style={styles.emptyRecord}>No chores assigned yet</Text>}
-                    </View>
+                        ))}
+                      </View>
+                    ) : null}
 
                     {expanded ? (
                       <View style={styles.recordDetails}>
                         <Divider />
-                        <Text style={styles.recordHeading}>PAST CASES</Text>
-                        {personCases.length ? personCases.map((item) => (
+                        <Text style={styles.recordHeading}>Convictions</Text>
+                        {convictionCases.length ? convictionCases.map((item) => (
                           <View key={item.id} style={styles.caseRow}>
                             <View style={styles.caseCopy}>
                               <Text style={styles.caseTitle}>{item.charge}</Text>
@@ -184,7 +179,7 @@ export default function ProfilesScreen() {
                             </View>
                             <Pill tone={outcomeTone(item.status)}>{outcomeLabel(item.status)}</Pill>
                           </View>
-                        )) : <Text style={styles.emptyRecord}>No past cases on the household record.</Text>}
+                        )) : <Text style={styles.emptyRecord}>No guilty cases on the household record.</Text>}
                       </View>
                     ) : null}
                   </Card>
@@ -213,50 +208,47 @@ function outcomeLabel(status: string) {
   return 'Awaiting';
 }
 
-function outcomeTone(status: string): 'green' | 'blue' | 'amber' | 'rose' {
-  if (status === 'guilty') return 'green';
-  if (status === 'not_guilty') return 'blue';
-  if (status === 'mistrial') return 'rose';
-  return 'amber';
+function outcomeTone(status: string): 'neutral' | 'accent' {
+  return status === 'awaiting_defense' || status === 'ready_for_judgment' ? 'accent' : 'neutral';
 }
 
 const styles = StyleSheet.create({
-  signOutButton: { marginTop: 2, paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1, borderColor: Palette.line, borderRadius: 12, backgroundColor: Palette.card },
-  signOutText: { color: Palette.forest, fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
-  houseCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Palette.forest, borderColor: Palette.forest, padding: 16 },
-  houseIcon: { width: 45, height: 45, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.15)' },
-  houseIconText: { color: '#FFFFFF', fontSize: 31, fontWeight: '500', lineHeight: 36 },
+  signOutButton: { marginTop: 2, paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1, borderColor: Palette.line, borderRadius: 10, backgroundColor: Palette.card },
+  signOutText: { color: Palette.ink, fontSize: Typography.caption, fontWeight: '700' },
+  houseCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Palette.paper, borderColor: Palette.accent, padding: 16 },
+  houseIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: Palette.accent },
+  houseIconText: { color: Palette.ink, fontSize: Typography.title, fontWeight: '800' },
   houseCopy: { flex: 1, gap: 4, marginLeft: 12 },
-  houseTitle: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
-  houseDescription: { color: '#D6E5DC', fontSize: 11 },
+  houseTitle: { color: Palette.ink, fontSize: Typography.heading, fontWeight: '800' },
+  houseDescription: { color: Palette.muted, fontSize: Typography.caption },
   houseStat: { alignItems: 'flex-end' },
-  statNumber: { color: '#FFFFFF', fontSize: 21, fontWeight: '900' },
-  statCaption: { color: '#D6E5DC', fontSize: 10 },
+  statNumber: { color: Palette.ink, fontSize: Typography.title, fontWeight: '900' },
+  statCaption: { color: Palette.muted, fontSize: Typography.caption },
   sectionBlock: { gap: 13 },
   profileList: { gap: 12 },
   profilePressable: { borderRadius: 20 },
   profileCard: { gap: 14, padding: 15 },
   profileTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   profileIdentity: { flex: 1, gap: 4 },
-  name: { color: Palette.ink, fontSize: 16, fontWeight: '800' },
-  role: { color: Palette.muted, fontSize: 12, textTransform: 'capitalize' },
-  recordCount: { alignItems: 'center', minWidth: 64, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 12, backgroundColor: Palette.amberSoft },
-  recordNumber: { color: Palette.ink, fontSize: 17, fontWeight: '900' },
-  recordLabel: { color: Palette.muted, fontSize: 9, fontWeight: '700' },
+  name: { color: Palette.ink, fontSize: Typography.heading, fontWeight: '800' },
+  role: { color: Palette.muted, fontSize: Typography.caption, textTransform: 'capitalize' },
+  recordCount: { alignItems: 'center', minWidth: 64, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, backgroundColor: Palette.accent },
+  recordNumber: { color: Palette.ink, fontSize: Typography.heading, fontWeight: '900' },
+  recordLabel: { color: Palette.muted, fontSize: Typography.caption, fontWeight: '700' },
   choreRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   recordDetails: { gap: 10, paddingTop: 1 },
-  recordHeading: { color: Palette.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
+  recordHeading: { color: Palette.ink, fontSize: Typography.caption, fontWeight: '700' },
   caseRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, paddingVertical: 3 },
   caseCopy: { flex: 1, gap: 3 },
-  caseTitle: { color: Palette.ink, fontSize: 12, fontWeight: '700' },
-  caseAllegation: { color: Palette.muted, fontSize: 11, lineHeight: 16 },
-  casePunishment: { color: Palette.forest, fontSize: 10, fontWeight: '700' },
-  emptyRecord: { color: Palette.muted, fontSize: 12, lineHeight: 18 },
-  noticeCard: { flexDirection: 'row', gap: 11, padding: 14, backgroundColor: '#F0EDE4' },
-  noticeMark: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: Palette.forestSoft },
-  noticeMarkText: { color: Palette.forest, fontWeight: '900', fontSize: 13 },
-  noticeText: { flex: 1, color: Palette.muted, fontSize: 11, lineHeight: 17 },
+  caseTitle: { color: Palette.ink, fontSize: Typography.caption, fontWeight: '700' },
+  caseAllegation: { color: Palette.muted, fontSize: Typography.caption, lineHeight: 17 },
+  casePunishment: { color: Palette.ink, fontSize: Typography.caption, fontWeight: '700' },
+  emptyRecord: { color: Palette.muted, fontSize: Typography.body, lineHeight: 20 },
+  noticeCard: { flexDirection: 'row', gap: 11, padding: 14, backgroundColor: Palette.paper },
+  noticeMark: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: Palette.accent },
+  noticeMarkText: { color: Palette.ink, fontWeight: '900', fontSize: Typography.body },
+  noticeText: { flex: 1, color: Palette.muted, fontSize: Typography.caption, lineHeight: 17 },
   loader: { paddingVertical: 24 },
-  errorText: { color: Palette.rose, fontSize: 12, lineHeight: 18 },
+  errorText: { color: Palette.ink, fontSize: Typography.body, lineHeight: 20 },
   pressed: { opacity: 0.88 },
 });

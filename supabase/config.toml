@@ -1,2 +1,5 @@
 [functions.judge-case]
 verify_jwt = true
+
+[functions.dispatch-case-notifications]
+verify_jwt = false

@@ -7,11 +7,11 @@ export default function AppTabs() {
     <NativeTabs
       backgroundColor={Palette.card}
       disableTransparentOnScrollEdge
-      iconColor={{ default: Palette.muted, selected: Palette.forest }}
-      indicatorColor={Palette.forestSoft}
+      iconColor={{ default: Palette.muted, selected: Palette.ink }}
+      indicatorColor={Palette.accent}
       labelStyle={{
         default: { color: Palette.muted },
-        selected: { color: Palette.forest, fontWeight: '700' },
+        selected: { color: Palette.ink, fontWeight: '700' },
       }}
       labelVisibilityMode="labeled">
       <NativeTabs.Trigger name="index">

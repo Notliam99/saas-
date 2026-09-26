@@ -1,43 +1,54 @@
 {
   "expo": {
-    "name": "saas",
+    "name": "Judgy",
     "slug": "saas",
     "version": "1.0.0",
     "orientation": "portrait",
+    "backgroundColor": "#EDE7D9",
     "icon": "./assets/images/icon.png",
-    "scheme": "saas",
+    "scheme": "judgy",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/icon.png"
     },
     "android": {
+      "package": "app.expo.judgy",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#D5A021",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "themeColor": "#D5A021"
     },
     "plugins": [
       "expo-router",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#D5A021",
+          "defaultChannel": "case-updates"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#EDE7D9",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 120
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Flat Court to attach photo evidence to a household case.",
-          "cameraPermission": "Allow Flat Court to take photo evidence for a household case.",
+          "photosPermission": "Allow Judgy to attach photo evidence to a household case.",
+          "cameraPermission": "Allow Judgy to take photo evidence for a household case.",
           "microphonePermission": false
         }
       ],

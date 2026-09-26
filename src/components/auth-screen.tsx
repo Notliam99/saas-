@@ -12,20 +12,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Palette } from '@/components/flat-judge-ui';
+import { Typography } from '@/constants/typography';
 import { signInWithSocialProvider, type SocialProvider } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-
-const colors = {
-  paper: '#F5F1E8',
-  card: '#FFFEFA',
-  ink: '#1D2926',
-  muted: '#707873',
-  line: '#E5DFD3',
-  forest: '#235548',
-  forestSoft: '#E0EBE4',
-  rose: '#A85242',
-  roseSoft: '#F5E6E1',
-};
 
 type Mode = 'sign_in' | 'create_account';
 
@@ -134,17 +124,17 @@ export function AuthScreen({ initialMessage }: { initialMessage?: string | null 
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled">
           <View style={styles.brandRow}>
-            <View style={styles.brandMark}><Text style={styles.brandMarkText}>F</Text></View>
-            <Text style={styles.brandName}>FLAT COURT</Text>
+            <View style={styles.brandMark}><Text style={styles.brandMarkText}>J</Text></View>
+            <Text style={styles.brandName}>Judgy</Text>
           </View>
 
           <View style={styles.intro}>
-            <Text style={styles.eyebrow}>HOUSEMATE JUSTICE, SORTED</Text>
+            <Text style={styles.eyebrow}>A fairer way to handle flatmate friction</Text>
             <Text style={styles.title}>{codeSent ? 'Check your inbox.' : 'Come on in.'}</Text>
             <Text style={styles.subtitle}>
               {codeSent
                 ? `Enter the six-digit code sent to ${normalizedEmail}.`
-                : 'Sign in to your household court, or create an account to join the record.'}
+                : 'Sign in to your household court or create an account to get started.'}
             </Text>
           </View>
 
@@ -194,13 +184,13 @@ export function AuthScreen({ initialMessage }: { initialMessage?: string | null 
 
               <View style={styles.separatorRow}>
                 <View style={styles.separator} />
-                <Text style={styles.separatorLabel}>OR CONTINUE WITH</Text>
+                <Text style={styles.separatorLabel}>or use</Text>
                 <View style={styles.separator} />
               </View>
 
               <View style={styles.socialButtons}>
-                <SocialButton disabled={busy} label="Apple" onPress={() => continueWith('apple')} symbol="●" />
-                <SocialButton disabled={busy} label="Google" onPress={() => continueWith('google')} symbol="G" />
+                <SocialButton disabled={busy} label="Apple" onPress={() => continueWith('apple')} />
+                <SocialButton disabled={busy} label="Google" onPress={() => continueWith('google')} />
               </View>
             </>
           ) : (
@@ -235,7 +225,7 @@ export function AuthScreen({ initialMessage }: { initialMessage?: string | null 
             </View>
           ) : null}
 
-          {busy ? <ActivityIndicator color={colors.forest} style={styles.loader} /> : null}
+          {busy ? <ActivityIndicator color={Palette.accent} style={styles.loader} /> : null}
           <Text style={styles.footnote}>Your name is for your household profile. Your email keeps your account secure.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -285,7 +275,7 @@ function InputField({
         maxLength={maxLength}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor="#929A94"
+        placeholderTextColor={Palette.muted}
         style={styles.input}
         value={value}
       />
@@ -307,12 +297,10 @@ function PrimaryButton({ label, onPress, disabled }: { label: string; onPress: (
 
 function SocialButton({
   label,
-  symbol,
   onPress,
   disabled,
 }: {
   label: string;
-  symbol: string;
   onPress: () => void;
   disabled: boolean;
 }) {
@@ -322,7 +310,6 @@ function SocialButton({
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [styles.socialButton, pressed && styles.pressed, disabled && styles.disabled]}>
-      <Text style={styles.socialSymbol}>{symbol}</Text>
       <Text style={styles.socialLabel}>{label}</Text>
     </Pressable>
   );
@@ -330,7 +317,7 @@ function SocialButton({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  safeArea: { flex: 1, backgroundColor: colors.paper },
+  safeArea: { flex: 1, backgroundColor: Palette.paper },
   scrollContent: {
     width: '100%',
     maxWidth: 520,
@@ -346,47 +333,47 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: colors.forest,
+    backgroundColor: Palette.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brandMarkText: { color: '#FFFFFF', fontSize: 19, fontWeight: '900' },
-  brandName: { color: colors.forest, fontSize: 12, fontWeight: '900', letterSpacing: 1.6 },
+  brandMarkText: { color: Palette.ink, fontSize: Typography.heading, fontWeight: '900' },
+  brandName: { color: Palette.ink, fontSize: Typography.body, fontWeight: '800' },
   intro: { gap: 8, marginTop: 6 },
-  eyebrow: { color: colors.forest, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
-  title: { color: colors.ink, fontSize: 34, lineHeight: 40, fontWeight: '900', letterSpacing: -1.1 },
-  subtitle: { maxWidth: 410, color: colors.muted, fontSize: 14, lineHeight: 21 },
-  modeSwitch: { flexDirection: 'row', padding: 4, borderRadius: 15, backgroundColor: '#EAE6DC' },
+  eyebrow: { color: Palette.ink, fontSize: Typography.body, fontWeight: '700' },
+  title: { color: Palette.ink, fontSize: Typography.display, lineHeight: 40, fontWeight: '900', letterSpacing: -1.1 },
+  subtitle: { maxWidth: 410, color: Palette.muted, fontSize: Typography.body, lineHeight: 21 },
+  modeSwitch: { flexDirection: 'row', padding: 4, borderRadius: 15, backgroundColor: Palette.paper },
   modeButton: { flex: 1, minHeight: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  modeButtonActive: { backgroundColor: colors.card, boxShadow: '0 2px 8px rgba(29, 41, 38, 0.08)' },
-  modeButtonLabel: { color: colors.muted, fontSize: 13, fontWeight: '700' },
-  modeButtonLabelActive: { color: colors.ink, fontWeight: '900' },
+  modeButtonActive: { backgroundColor: Palette.accent },
+  modeButtonLabel: { color: Palette.muted, fontSize: Typography.body, fontWeight: '700' },
+  modeButtonLabelActive: { color: Palette.ink, fontWeight: '900' },
   form: { gap: 14 },
   inputGroup: { gap: 7 },
-  inputLabel: { color: colors.ink, fontSize: 12, fontWeight: '800' },
+  inputLabel: { color: Palette.ink, fontSize: Typography.caption, fontWeight: '800' },
   input: {
     minHeight: 52,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: Palette.line,
     borderRadius: 14,
-    backgroundColor: colors.card,
+    backgroundColor: Palette.card,
     paddingHorizontal: 15,
-    color: colors.ink,
-    fontSize: 15,
+    color: Palette.ink,
+    fontSize: Typography.body,
   },
-  helper: { marginTop: -7, color: colors.muted, fontSize: 11 },
+  helper: { marginTop: -7, color: Palette.muted, fontSize: Typography.caption },
   primaryButton: {
     minHeight: 52,
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.forest,
+    backgroundColor: Palette.accent,
     paddingHorizontal: 18,
   },
-  primaryButtonLabel: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+  primaryButtonLabel: { color: Palette.ink, fontSize: Typography.body, fontWeight: '900' },
   separatorRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  separator: { height: 1, flex: 1, backgroundColor: colors.line },
-  separatorLabel: { color: colors.muted, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  separator: { height: 1, flex: 1, backgroundColor: Palette.line },
+  separatorLabel: { color: Palette.muted, fontSize: Typography.caption, fontWeight: '600' },
   socialButtons: { flexDirection: 'row', gap: 10 },
   socialButton: {
     minHeight: 50,
@@ -397,19 +384,18 @@ const styles = StyleSheet.create({
     gap: 9,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.card,
+    borderColor: Palette.line,
+    backgroundColor: Palette.card,
   },
-  socialSymbol: { color: colors.ink, fontSize: 17, fontWeight: '900' },
-  socialLabel: { color: colors.ink, fontSize: 13, fontWeight: '800' },
-  messageBox: { borderRadius: 12, padding: 12, backgroundColor: colors.forestSoft },
-  errorBox: { backgroundColor: colors.roseSoft },
-  messageText: { color: colors.forest, fontSize: 12, lineHeight: 18 },
-  errorText: { color: colors.rose },
+  socialLabel: { color: Palette.ink, fontSize: Typography.body, fontWeight: '800' },
+  messageBox: { borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Palette.line, backgroundColor: Palette.paper },
+  errorBox: { borderColor: Palette.accent },
+  messageText: { color: Palette.ink, fontSize: Typography.body, lineHeight: 20 },
+  errorText: { color: Palette.ink },
   loader: { marginTop: -10 },
   textButton: { alignSelf: 'center', paddingVertical: 5 },
-  textButtonLabel: { color: colors.forest, fontSize: 12, fontWeight: '800' },
-  footnote: { color: colors.muted, fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 2 },
+  textButtonLabel: { color: Palette.ink, fontSize: Typography.caption, fontWeight: '800' },
+  footnote: { color: Palette.muted, fontSize: Typography.caption, lineHeight: 17, textAlign: 'center', marginTop: 2 },
   pressed: { opacity: 0.78 },
   disabled: { opacity: 0.55 },
 });

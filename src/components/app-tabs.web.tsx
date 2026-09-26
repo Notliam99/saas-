@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { Palette } from '@/components/flat-judge-ui';
+import { Typography } from '@/constants/typography';
 
 export default function AppTabs() {
   return (
@@ -39,11 +40,11 @@ function TabButton({
       {...props}
       accessibilityRole="tab"
       accessibilityState={{ selected: isFocused }}
-      style={({ pressed }) => [styles.tabButton, pressed && styles.pressed]}>
+      style={({ pressed }) => [styles.tabButton, isFocused && styles.tabButtonSelected, pressed && styles.pressed]}>
       <SymbolView
         name={icon}
         size={19}
-        tintColor={isFocused ? Palette.forest : Palette.muted}
+        tintColor={isFocused ? Palette.ink : Palette.muted}
         style={styles.tabIcon}
       />
       <Text style={[styles.tabButtonText, isFocused && styles.tabButtonTextSelected]}>{children}</Text>
@@ -67,7 +68,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Palette.line,
     backgroundColor: Palette.card,
-    boxShadow: '0 4px 18px rgba(29, 41, 38, 0.10)',
   },
   tabButton: {
     flex: 1,
@@ -78,8 +78,9 @@ const styles = StyleSheet.create({
     gap: 3,
     borderRadius: 14,
   },
+  tabButtonSelected: { backgroundColor: Palette.accent },
   tabIcon: { width: 21, height: 21 },
-  tabButtonText: { color: Palette.muted, fontSize: 11, fontWeight: '700' },
-  tabButtonTextSelected: { color: Palette.forest, fontWeight: '900' },
+  tabButtonText: { color: Palette.muted, fontSize: Typography.caption, fontWeight: '700' },
+  tabButtonTextSelected: { color: Palette.ink, fontWeight: '900' },
   pressed: { opacity: 0.7 },
 });

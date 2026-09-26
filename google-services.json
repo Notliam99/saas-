@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1028268711250",
+    "project_id": "judgy-5764e",
+    "storage_bucket": "judgy-5764e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1028268711250:android:2daaa48c50b1236d72ae8b",
+        "android_client_info": {
+          "package_name": "app.expo.judgy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAygeHPtXP4iiPB7UXPvOPQ29eNDycYaCY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

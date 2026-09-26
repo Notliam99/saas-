@@ -10,20 +10,15 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Typography } from '@/constants/typography';
 
 export const Palette = {
-  paper: '#F5F1E8',
-  card: '#FFFEFA',
-  ink: '#1D2926',
-  muted: '#707873',
-  line: '#E5DFD3',
-  forest: '#235548',
-  forestSoft: '#E0EBE4',
-  amber: '#E9B15C',
-  amberSoft: '#F7ECD9',
-  rose: '#A85242',
-  roseSoft: '#F5E6E1',
-  blueSoft: '#E5EBF0',
+  paper: '#EDE7D9',
+  card: '#EDE7D9',
+  ink: '#4B4237',
+  muted: '#736B60',
+  line: '#A49694',
+  accent: '#D5A021',
 };
 
 export function Screen({ children }: PropsWithChildren) {
@@ -40,12 +35,10 @@ export function Screen({ children }: PropsWithChildren) {
 }
 
 export function PageHeader({
-  eyebrow,
   title,
   subtitle,
   accessory,
 }: {
-  eyebrow: string;
   title: string;
   subtitle: string;
   accessory?: ReactNode;
@@ -53,7 +46,6 @@ export function PageHeader({
   return (
     <View style={styles.header}>
       <View style={styles.headerText}>
-        <Text style={styles.eyebrow}>{eyebrow}</Text>
         <Text style={styles.pageTitle}>{title}</Text>
         <Text style={styles.subtitle}>{subtitle}</Text>
       </View>
@@ -84,14 +76,8 @@ export function SectionHeading({
 export function Pill({
   children,
   tone = 'neutral',
-}: PropsWithChildren<{ tone?: 'neutral' | 'green' | 'amber' | 'rose' | 'blue' }>) {
-  const toneStyle = {
-    neutral: styles.pillNeutral,
-    green: styles.pillGreen,
-    amber: styles.pillAmber,
-    rose: styles.pillRose,
-    blue: styles.pillBlue,
-  }[tone];
+}: PropsWithChildren<{ tone?: 'neutral' | 'accent' }>) {
+  const toneStyle = tone === 'accent' ? styles.pillAccent : styles.pillNeutral;
 
   return (
     <View style={[styles.pill, toneStyle]}>
@@ -160,7 +146,7 @@ export function Divider() {
 
 export function Initials({
   label,
-  color = Palette.forestSoft,
+  color = Palette.paper,
 }: {
   label: string;
   color?: string;
@@ -196,22 +182,15 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 5,
   },
-  eyebrow: {
-    color: Palette.forest,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
-  },
   pageTitle: {
     color: Palette.ink,
-    fontSize: 31,
+    fontSize: Typography.display,
     fontWeight: '800',
     letterSpacing: -0.8,
   },
   subtitle: {
     color: Palette.muted,
-    fontSize: 14,
+    fontSize: Typography.body,
     lineHeight: 20,
   },
   card: {
@@ -220,7 +199,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.card,
     borderColor: Palette.line,
     borderWidth: 1,
-    borderRadius: 20,
+    borderRadius: 16,
   },
   sectionHeading: {
     flexDirection: 'row',
@@ -230,31 +209,28 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: Palette.ink,
-    fontSize: 18,
+    fontSize: Typography.heading,
     fontWeight: '800',
     letterSpacing: -0.25,
   },
   sectionDetail: {
     color: Palette.muted,
-    fontSize: 12,
+    fontSize: Typography.caption,
     fontWeight: '600',
   },
   pill: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 99,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
   },
-  pillNeutral: { backgroundColor: '#ECEAE4' },
-  pillGreen: { backgroundColor: Palette.forestSoft },
-  pillAmber: { backgroundColor: Palette.amberSoft },
-  pillRose: { backgroundColor: Palette.roseSoft },
-  pillBlue: { backgroundColor: Palette.blueSoft },
+  pillNeutral: { backgroundColor: Palette.paper, borderColor: Palette.line },
+  pillAccent: { backgroundColor: Palette.accent, borderColor: Palette.accent },
   pillText: {
     color: Palette.ink,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.2,
+    fontSize: Typography.caption,
+    fontWeight: '700',
   },
   actionButton: {
     minHeight: 52,
@@ -262,22 +238,22 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Palette.forest,
-    borderRadius: 15,
+    backgroundColor: Palette.accent,
+    borderRadius: 12,
   },
   actionButtonDisabled: {
     opacity: 0.45,
   },
   actionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
+    color: Palette.ink,
+    fontSize: Typography.body,
+    fontWeight: '900',
   },
   pressed: { opacity: 0.8, transform: [{ scale: 0.99 }] },
   fieldGroup: { gap: 8 },
   fieldLabel: {
     color: Palette.ink,
-    fontSize: 13,
+    fontSize: Typography.body,
     fontWeight: '800',
   },
   input: {
@@ -285,8 +261,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     color: Palette.ink,
-    fontSize: 15,
-    backgroundColor: '#FAF8F2',
+    fontSize: Typography.body,
+    backgroundColor: Palette.card,
     borderColor: Palette.line,
     borderWidth: 1,
     borderRadius: 13,
@@ -307,8 +283,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   initialsText: {
-    color: Palette.forest,
-    fontSize: 16,
+    color: Palette.ink,
+    fontSize: Typography.body,
     fontWeight: '900',
   },
 });

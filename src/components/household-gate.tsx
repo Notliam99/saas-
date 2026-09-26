@@ -9,6 +9,7 @@ import {
   Palette,
   Screen,
 } from '@/components/flat-judge-ui';
+import { Typography } from '@/constants/typography';
 import { supabase } from '@/lib/supabase';
 
 export type Household = {
@@ -80,7 +81,7 @@ export function HouseholdGate({ userId, children }: PropsWithChildren<{ userId: 
   if (loading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator color={Palette.forest} />
+        <ActivityIndicator color={Palette.accent} />
         <Text style={styles.loadingLabel}>Loading your household…</Text>
       </View>
     );
@@ -137,7 +138,6 @@ function HouseholdOnboarding({ onComplete }: { onComplete: () => void }) {
   return (
     <Screen>
       <PageHeader
-        eyebrow="One last setup"
         title="Your household"
         subtitle="Create a household for your flat, or join one with an invite code."
       />
@@ -182,7 +182,7 @@ function HouseholdOnboarding({ onComplete }: { onComplete: () => void }) {
 function SetupError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <Screen>
-      <PageHeader eyebrow="Household setup" title="Almost there" subtitle="We couldn't load your household yet." />
+      <PageHeader title="Almost there" subtitle="We couldn't load your household yet." />
       <Card style={styles.onboardingCard}>
         <Text style={styles.errorText}>{message}</Text>
         <Text style={styles.helpCopy}>If the database tables or functions are missing, apply the Supabase migration and try again.</Text>
@@ -209,17 +209,17 @@ function ModeButton({ active, label, onPress }: { active: boolean; label: string
 
 const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: Palette.paper },
-  loadingLabel: { color: Palette.muted, fontSize: 12, fontWeight: '600' },
+  loadingLabel: { color: Palette.muted, fontSize: Typography.caption, fontWeight: '600' },
   onboardingCard: { gap: 16 },
-  modeRow: { flexDirection: 'row', padding: 4, borderRadius: 14, backgroundColor: '#EAE6DC' },
+  modeRow: { flexDirection: 'row', padding: 4, borderRadius: 14, backgroundColor: Palette.paper },
   modeButton: { flex: 1, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
-  modeButtonActive: { backgroundColor: Palette.card },
-  modeLabel: { color: Palette.muted, fontSize: 12, fontWeight: '700' },
+  modeButtonActive: { backgroundColor: Palette.accent },
+  modeLabel: { color: Palette.muted, fontSize: Typography.caption, fontWeight: '700' },
   modeLabelActive: { color: Palette.ink, fontWeight: '900' },
-  errorText: { color: Palette.rose, fontSize: 12, lineHeight: 18 },
-  helpCard: { gap: 7, backgroundColor: Palette.forestSoft, borderColor: Palette.forestSoft },
-  helpTitle: { color: Palette.forest, fontSize: 14, fontWeight: '900' },
-  helpCopy: { color: Palette.muted, fontSize: 12, lineHeight: 18 },
+  errorText: { color: Palette.ink, fontSize: Typography.body, lineHeight: 20 },
+  helpCard: { gap: 7, backgroundColor: Palette.paper, borderColor: Palette.accent },
+  helpTitle: { color: Palette.ink, fontSize: Typography.body, fontWeight: '900' },
+  helpCopy: { color: Palette.muted, fontSize: Typography.body, lineHeight: 20 },
   signOutButton: { alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 10 },
-  signOutText: { color: Palette.muted, fontSize: 12, fontWeight: '800' },
+  signOutText: { color: Palette.muted, fontSize: Typography.caption, fontWeight: '800' },
 });

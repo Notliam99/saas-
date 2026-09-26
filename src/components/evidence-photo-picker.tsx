@@ -3,6 +3,7 @@ import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native
 import * as ImagePicker from 'expo-image-picker';
 
 import { Palette } from '@/components/flat-judge-ui';
+import { Typography } from '@/constants/typography';
 
 export type EvidencePhoto = {
   id: string;
@@ -124,16 +125,16 @@ function PickerButton({ disabled, label, onPress }: { disabled: boolean; label: 
 
 const styles = StyleSheet.create({
   container: { gap: 8 },
-  label: { color: Palette.ink, fontSize: 12, fontWeight: '800' },
+  label: { color: Palette.ink, fontSize: Typography.caption, fontWeight: '800' },
   optional: { color: Palette.muted, fontWeight: '500' },
-  help: { color: Palette.muted, fontSize: 10, lineHeight: 15 },
+  help: { color: Palette.muted, fontSize: Typography.caption, lineHeight: 17 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  button: { minHeight: 38, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: Palette.line, backgroundColor: '#FAF8F2' },
+  button: { minHeight: 38, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: Palette.line, backgroundColor: Palette.card },
   buttonDisabled: { opacity: 0.45 },
-  buttonText: { color: Palette.forest, fontSize: 11, fontWeight: '800' },
+  buttonText: { color: Palette.ink, fontSize: Typography.caption, fontWeight: '800' },
   photoList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   photoItem: { position: 'relative' },
   thumbnail: { width: 76, height: 76, borderRadius: 12, backgroundColor: Palette.line },
-  removeButton: { position: 'absolute', top: -5, right: -5, width: 23, height: 23, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: Palette.ink, borderWidth: 2, borderColor: '#FFFEFA' },
-  removeText: { color: '#FFFFFF', fontSize: 18, lineHeight: 19, fontWeight: '700' },
+  removeButton: { position: 'absolute', top: -5, right: -5, width: 23, height: 23, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: Palette.ink, borderWidth: 2, borderColor: Palette.paper },
+  removeText: { color: Palette.paper, fontSize: Typography.heading, lineHeight: 20, fontWeight: '700' },
 });

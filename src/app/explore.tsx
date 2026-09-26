@@ -1,11 +1,12 @@
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { EvidencePhotoPicker, type EvidencePhoto } from '@/components/evidence-photo-picker';
 import {
   ActionButton,
   Card,
   FormField,
-  Initials,
   PageHeader,
   Palette,
   Pill,
@@ -13,7 +14,7 @@ import {
   SectionHeading,
 } from '@/components/flat-judge-ui';
 import { useHousehold } from '@/components/household-gate';
-import { EvidencePhotoPicker, type EvidencePhoto } from '@/components/evidence-photo-picker';
+import { Typography } from '@/constants/typography';
 import {
   loadCaseEvidence,
   removeCaseEvidence,
@@ -21,6 +22,10 @@ import {
   type CaseEvidenceImage,
 } from '@/lib/case-evidence';
 import { supabase } from '@/lib/supabase';
+import {
+  dispatchPendingCaseNotifications,
+  registerAndroidPushNotifications,
+} from '../lib/push-notifications';
 
 const charges = ['Missed chore', 'Noise', 'Shared space', 'Property damage', 'Other'];
 
@@ -43,6 +48,8 @@ type PendingPhotoUpload = { caseId: string; photos: EvidencePhoto[] };
 
 export default function CourtScreen() {
   const household = useHousehold();
+  const { caseId: notificationCaseParam } = useLocalSearchParams<{ caseId?: string | string[] }>();
+  const notificationCaseId = Array.isArray(notificationCaseParam) ? notificationCaseParam[0] : notificationCaseParam;
   const [userId, setUserId] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [cases, setCases] = useState<CourtCase[]>([]);
@@ -62,6 +69,16 @@ export default function CourtScreen() {
   const [evidenceImages, setEvidenceImages] = useState<CaseEvidenceImage[]>([]);
   const [pendingPhotoUpload, setPendingPhotoUpload] = useState<PendingPhotoUpload | null>(null);
   const [reload, setReload] = useState(0);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMessage, setPushMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !userId) return;
+    void registerAndroidPushNotifications(userId, false)
+      .then(setPushEnabled)
+      .catch(() => setPushEnabled(false));
+  }, [userId]);
 
   useEffect(() => {
     let active = true;
@@ -194,12 +211,14 @@ export default function CourtScreen() {
           });
         } catch {
           setPendingPhotoUpload({ caseId: createdCase.id, photos: photosToUpload });
+          await dispatchPendingCaseNotifications();
           setNotice('The notice was filed, but its photos did not upload. Retry the photo upload below.');
           setReload((value) => value + 1);
           setBusy(false);
           return;
         }
       }
+      await dispatchPendingCaseNotifications();
       setNotice(`Notice sent to ${profileById.get(accusedId) ?? 'your flatmate'}.`);
       setReload((value) => value + 1);
     }
@@ -263,6 +282,7 @@ export default function CourtScreen() {
     } else {
       setDefense('');
       setDefensePhotos([]);
+      await dispatchPendingCaseNotifications();
       setNotice('Your defense has been added to the case. It is now ready for the AI Judge.');
       setReload((value) => value + 1);
     }
@@ -302,30 +322,59 @@ export default function CourtScreen() {
   }
 
   if (loading) {
-    return <Screen><ActivityIndicator color={Palette.forest} style={styles.loader} /></Screen>;
+    return <Screen><ActivityIndicator color={Palette.accent} style={styles.loader} /></Screen>;
   }
 
   const defenseForPending = myPendingCase ? defenses.find((item) => item.case_id === myPendingCase.id) : undefined;
+  const readyCases = cases.filter((item) => item.status === 'ready_for_judgment' && item.id !== notificationCaseId);
+  const notificationCase = notificationCaseId
+    ? cases.find((item) => item.id === notificationCaseId)
+    : undefined;
 
   return (
     <Screen>
       <PageHeader
-        eyebrow={`${household.name} · Courtroom`}
         title="Court"
-        subtitle="File a notice, let the accused respond, then send the record to the AI Judge."
-        accessory={<Pill tone="amber">AI FINAL</Pill>}
+        subtitle="Raise a concern, hear both sides, and ask the AI Judge for a decision."
       />
 
       <Card style={styles.accountCard}>
         <View style={styles.accountHeading}>
-          <View style={styles.accountIcon}><Text style={styles.accountIconText}>§</Text></View>
           <View style={styles.accountCopy}>
             <Text style={styles.accountTitle}>Signed in as {me}</Text>
-            <Text style={styles.accountNote}>Court actions are filed under your account.</Text>
           </View>
-          <Pill tone="green">LIVE</Pill>
         </View>
       </Card>
+
+      {Platform.OS === 'android' ? (
+        <Card style={styles.pushCard}>
+          <View style={styles.pushCopy}>
+            <Text style={styles.cardTitle}>Case notifications</Text>
+            <Text style={styles.bodyText}>
+              Get Android alerts when a case is filed, answered, or decided. Notifications can include case details and a photo preview.
+            </Text>
+          </View>
+          {pushMessage ? <Text style={styles.pushMessage}>{pushMessage}</Text> : null}
+          <ActionButton
+            disabled={pushBusy || pushEnabled || !userId}
+            label={pushBusy ? 'Enabling…' : pushEnabled ? 'Notifications enabled' : 'Enable notifications'}
+            onPress={() => {
+              setPushBusy(true);
+              setPushMessage(null);
+              void registerAndroidPushNotifications(userId ?? '').then(async (enabled) => {
+                setPushEnabled(enabled);
+                if (enabled) {
+                  await dispatchPendingCaseNotifications();
+                } else {
+                  setPushMessage('Notifications are blocked. Allow them for Judgy in Android settings.');
+                }
+              }).catch((pushError) => {
+                setPushMessage(pushError instanceof Error ? pushError.message : 'Could not enable notifications.');
+              }).finally(() => setPushBusy(false));
+            }}
+          />
+        </Card>
+      ) : null}
 
       {error ? <Card style={styles.errorCard}><Text style={styles.errorText}>{error}</Text></Card> : null}
       {notice ? <Card style={styles.noticeCard}><Text style={styles.noticeText}>{notice}</Text></Card> : null}
@@ -335,6 +384,21 @@ export default function CourtScreen() {
           <Text style={styles.bodyText}>{pendingPhotoUpload.photos.length} photo(s) are waiting to be attached to your filed notice.</Text>
           <ActionButton disabled={busy} label={busy ? 'Uploading…' : 'Retry photo upload'} onPress={() => { void retryPhotoUpload(); }} />
         </Card>
+      ) : null}
+
+      {notificationCase ? (
+        <View style={styles.sectionBlock}>
+          <SectionHeading title="Opened from notification" detail="Case update" />
+          <CaseCard
+            item={notificationCase}
+            defenses={defenses}
+            evidenceImages={evidenceImages}
+            nameFor={(id) => profileById.get(id) ?? 'Flatmate'}
+            onJudge={judgeCase}
+            judging={judgingCaseId === notificationCase.id}
+            disabled={busy && judgingCaseId !== notificationCase.id}
+          />
+        </View>
       ) : null}
 
       {myPendingCase ? (
@@ -352,7 +416,7 @@ export default function CourtScreen() {
           <Card style={styles.formCard}>
             {defenseForPending ? (
               <>
-                <Pill tone="green">DEFENSE SAVED</Pill>
+                <Pill>Response saved</Pill>
                 <Text style={styles.bodyText}>{defenseForPending.response}</Text>
                 {defenseForPending.evidence_notes ? <Text style={styles.bodyText}>{defenseForPending.evidence_notes}</Text> : null}
               </>
@@ -368,16 +432,33 @@ export default function CourtScreen() {
         </View>
       ) : null}
 
+      {readyCases.length ? (
+        <View style={styles.sectionBlock}>
+          <SectionHeading title="Ready for a decision" detail={`${readyCases.length} waiting`} />
+          {readyCases.map((item) => (
+            <CaseCard
+              key={item.id}
+              item={item}
+              defenses={defenses}
+              evidenceImages={evidenceImages}
+              nameFor={(id) => profileById.get(id) ?? 'Flatmate'}
+              onJudge={judgeCase}
+              judging={judgingCaseId === item.id}
+              disabled={busy && judgingCaseId !== item.id}
+            />
+          ))}
+        </View>
+      ) : null}
+
       <View style={styles.sectionBlock}>
-        <SectionHeading title="File a notice" detail="One open notice per accused flatmate" />
+        <SectionHeading title="File a notice"/>
         <Card style={styles.formCard}>
           {availableAccused.length ? (
             <>
               <Text style={styles.fieldLabel}>Flatmate</Text>
               <View style={styles.peopleList}>
-                {availableAccused.map((person, index) => {
+                {availableAccused.map((person) => {
                   const selected = accusedId === person.user_id;
-                  const initials = person.display_name.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('');
                   return (
                     <Pressable
                       accessibilityRole="button"
@@ -385,8 +466,7 @@ export default function CourtScreen() {
                       key={person.user_id}
                       onPress={() => setSelectedAccusedId(person.user_id)}
                       style={[styles.personOption, selected && styles.personOptionSelected]}>
-                      <Initials label={initials || '?'} color={avatarColors[index % avatarColors.length]} />
-                      <Text style={[styles.personName, selected && styles.personNameSelected]}>{person.display_name}</Text>
+                      <Text style={styles.personName}>{person.display_name}</Text>
                     </Pressable>
                   );
                 })}
@@ -426,23 +506,6 @@ export default function CourtScreen() {
         </Card>
       </View>
 
-      <View style={styles.sectionBlock}>
-        <SectionHeading title="Household cases" detail={`${cases.length} total`} />
-        {cases.length ? cases.map((item) => (
-          <CaseCard
-            key={item.id}
-            item={item}
-            defenses={defenses}
-            evidenceImages={evidenceImages}
-            nameFor={(id) => profileById.get(id) ?? 'Flatmate'}
-            onJudge={judgeCase}
-            judging={judgingCaseId === item.id}
-            disabled={busy && judgingCaseId !== item.id}
-          />
-        )) : (
-          <Card><Text style={styles.bodyText}>No cases have been filed in this household.</Text></Card>
-        )}
-      </View>
     </Screen>
   );
 }
@@ -468,10 +531,10 @@ function CaseCard({
   const prosecutionPhotos = evidenceImages.filter((image) => image.case_id === item.id && image.evidence_side === 'prosecution');
   const defensePhotos = evidenceImages.filter((image) => image.case_id === item.id && image.evidence_side === 'defense');
   const statusText = item.status === 'awaiting_defense'
-    ? 'AWAITING DEFENSE'
+    ? 'Awaiting a response'
     : item.status === 'ready_for_judgment'
-      ? 'READY FOR AI'
-      : outcomeLabel(item.status).toUpperCase();
+      ? 'Ready for a decision'
+      : outcomeLabel(item.status);
 
   return (
     <Card style={styles.caseCard}>
@@ -483,13 +546,13 @@ function CaseCard({
         <Pill tone={outcomeTone(item.status)}>{statusText}</Pill>
       </View>
       <Text style={styles.caseAllegation}>{item.allegation}</Text>
-      <Text style={styles.statementLabel}>PROSECUTION</Text>
+      <Text style={styles.statementLabel}>From the reporter</Text>
       <Text style={styles.bodyText}>{item.prosecutor_statement}</Text>
       {item.evidence_notes ? <Text style={styles.bodyText}>Evidence: {item.evidence_notes}</Text> : null}
       <StoredEvidencePhotos label="Prosecution photos" photos={prosecutionPhotos} />
       {defense ? (
         <View style={styles.defenseBlock}>
-          <Text style={styles.statementLabel}>DEFENSE · {nameFor(defense.defendant_id)}</Text>
+          <Text style={styles.statementLabel}>Response from {nameFor(defense.defendant_id)}</Text>
           <Text style={styles.bodyText}>{defense.response}</Text>
           {defense.evidence_notes ? <Text style={styles.bodyText}>Supporting details: {defense.evidence_notes}</Text> : null}
           <StoredEvidencePhotos label="Defense photos" photos={defensePhotos} />
@@ -515,7 +578,7 @@ function StoredEvidencePhotos({ label, photos }: { label: string; photos: CaseEv
   if (!photos.length) return null;
   return (
     <View style={styles.storedPhotosBlock}>
-      <Text style={styles.statementLabel}>{label.toUpperCase()}</Text>
+      <Text style={styles.statementLabel}>{label}</Text>
       <View style={styles.storedPhotos}>
         {photos.map((photo, index) => (
           <Image
@@ -537,55 +600,49 @@ function outcomeLabel(status: string) {
   return 'Awaiting';
 }
 
-function outcomeTone(status: string): 'green' | 'blue' | 'amber' | 'rose' {
-  if (status === 'guilty') return 'green';
-  if (status === 'not_guilty') return 'blue';
-  if (status === 'mistrial') return 'rose';
-  return 'amber';
+function outcomeTone(status: string): 'neutral' | 'accent' {
+  return status === 'awaiting_defense' || status === 'ready_for_judgment' ? 'accent' : 'neutral';
 }
-
-const avatarColors = ['#E9DFCF', '#DCE6DD', '#E6DDE8', '#DCE5EC', '#F0DFD8'];
 
 const styles = StyleSheet.create({
   sectionBlock: { gap: 12 },
   accountCard: { gap: 13 },
-  accountHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  accountIcon: { width: 39, height: 39, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: Palette.forestSoft },
-  accountIconText: { color: Palette.forest, fontSize: 21, fontWeight: '800' },
+  accountHeading: { flexDirection: 'row', alignItems: 'center' },
   accountCopy: { flex: 1, gap: 3 },
-  accountTitle: { color: Palette.ink, fontSize: 13, fontWeight: '900' },
-  accountNote: { color: Palette.muted, fontSize: 10, lineHeight: 15 },
+  pushCard: { gap: 12, borderColor: Palette.accent, backgroundColor: Palette.paper },
+  pushCopy: { gap: 5 },
+  pushMessage: { color: Palette.ink, fontSize: Typography.body, lineHeight: 20 },
+  accountTitle: { color: Palette.ink, fontSize: Typography.heading, fontWeight: '900' },
   formCard: { gap: 14 },
-  fieldLabel: { color: Palette.ink, fontSize: 12, fontWeight: '800' },
-  peopleList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  personOption: { minWidth: 100, flexDirection: 'row', alignItems: 'center', gap: 7, padding: 7, borderRadius: 14, borderWidth: 1, borderColor: Palette.line, backgroundColor: '#FAF8F2' },
-  personOptionSelected: { borderColor: Palette.forest, backgroundColor: Palette.forestSoft },
-  personName: { color: Palette.muted, fontSize: 11, fontWeight: '800' },
-  personNameSelected: { color: Palette.forest },
+  fieldLabel: { color: Palette.ink, fontSize: Typography.body, fontWeight: '800' },
+  peopleList: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  personOption: { justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: Palette.line, backgroundColor: Palette.card },
+  personOptionSelected: { backgroundColor: Palette.accent, borderColor: Palette.accent },
+  personName: { color: Palette.ink, fontSize: Typography.heading, fontWeight: '800' },
   chargeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  chargeChip: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 99, borderWidth: 1, borderColor: Palette.line, backgroundColor: '#FAF8F2' },
-  chargeChipSelected: { backgroundColor: Palette.forest, borderColor: Palette.forest },
-  chargeText: { color: Palette.muted, fontSize: 10, fontWeight: '700' },
-  chargeTextSelected: { color: '#FFFFFF' },
+  chargeChip: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 99, borderWidth: 1, borderColor: Palette.line, backgroundColor: Palette.card },
+  chargeChipSelected: { backgroundColor: Palette.accent, borderColor: Palette.accent },
+  chargeText: { color: Palette.ink, fontSize: Typography.caption, fontWeight: '700' },
+  chargeTextSelected: { color: Palette.ink },
   caseCard: { gap: 11 },
   caseHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 9 },
   caseCopy: { flex: 1, gap: 3 },
-  caseCharge: { color: Palette.ink, fontSize: 14, fontWeight: '900' },
-  caseMeta: { color: Palette.muted, fontSize: 10 },
-  caseAllegation: { color: Palette.ink, fontSize: 13, fontWeight: '700', lineHeight: 19 },
-  statementLabel: { color: Palette.muted, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  bodyText: { color: Palette.muted, fontSize: 11, lineHeight: 17 },
-  defenseBlock: { gap: 6, padding: 11, borderRadius: 13, backgroundColor: Palette.forestSoft },
+  caseCharge: { color: Palette.ink, fontSize: Typography.heading, fontWeight: '900' },
+  caseMeta: { color: Palette.muted, fontSize: Typography.caption },
+  caseAllegation: { color: Palette.ink, fontSize: Typography.body, fontWeight: '700', lineHeight: 20 },
+  statementLabel: { color: Palette.ink, fontSize: Typography.body, fontWeight: '700' },
+  bodyText: { color: Palette.muted, fontSize: Typography.body, lineHeight: 20 },
+  defenseBlock: { gap: 6, padding: 11, borderRadius: 12, borderWidth: 1, borderColor: Palette.line, backgroundColor: Palette.paper },
   storedPhotosBlock: { gap: 6 },
   storedPhotos: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   storedPhoto: { width: 104, height: 88, borderRadius: 12, backgroundColor: Palette.line },
-  punishmentText: { color: Palette.forest, fontSize: 11, fontWeight: '800' },
-  readyCard: { gap: 10, borderColor: '#C9DED2', backgroundColor: '#F3F8F4' },
+  punishmentText: { color: Palette.ink, fontSize: Typography.body, fontWeight: '800' },
+  readyCard: { gap: 10, borderColor: Palette.accent, backgroundColor: Palette.paper },
   judgeAction: { gap: 8, paddingTop: 3 },
-  cardTitle: { color: Palette.ink, fontSize: 15, fontWeight: '900' },
-  errorCard: { backgroundColor: Palette.roseSoft, borderColor: Palette.roseSoft },
-  errorText: { color: Palette.rose, fontSize: 12, lineHeight: 18 },
-  noticeCard: { backgroundColor: Palette.forestSoft, borderColor: Palette.forestSoft },
-  noticeText: { color: Palette.forest, fontSize: 12, lineHeight: 18 },
+  cardTitle: { color: Palette.ink, fontSize: Typography.heading, fontWeight: '900' },
+  errorCard: { backgroundColor: Palette.paper, borderColor: Palette.accent },
+  errorText: { color: Palette.ink, fontSize: Typography.body, lineHeight: 20 },
+  noticeCard: { backgroundColor: Palette.paper, borderColor: Palette.line },
+  noticeText: { color: Palette.ink, fontSize: Typography.body, lineHeight: 20 },
   loader: { paddingVertical: 30 },
 });

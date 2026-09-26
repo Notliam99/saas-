@@ -33,6 +33,14 @@
           "imageWidth": 76
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Flat Court to attach photo evidence to a household case.",
+          "cameraPermission": "Allow Flat Court to take photo evidence for a household case.",
+          "microphonePermission": false
+        }
+      ],
       "expo-secure-store"
     ],
     "experiments": {

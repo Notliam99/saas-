@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   ActionButton,
@@ -13,6 +13,13 @@ import {
   SectionHeading,
 } from '@/components/flat-judge-ui';
 import { useHousehold } from '@/components/household-gate';
+import { EvidencePhotoPicker, type EvidencePhoto } from '@/components/evidence-photo-picker';
+import {
+  loadCaseEvidence,
+  removeCaseEvidence,
+  uploadCaseEvidence,
+  type CaseEvidenceImage,
+} from '@/lib/case-evidence';
 import { supabase } from '@/lib/supabase';
 
 const charges = ['Missed chore', 'Noise', 'Shared space', 'Property damage', 'Other'];
@@ -32,6 +39,7 @@ type CourtCase = {
   created_at: string;
 };
 type Defense = { case_id: string; defendant_id: string; response: string; evidence_notes: string };
+type PendingPhotoUpload = { caseId: string; photos: EvidencePhoto[] };
 
 export default function CourtScreen() {
   const household = useHousehold();
@@ -43,13 +51,15 @@ export default function CourtScreen() {
   const [charge, setCharge] = useState(charges[0]);
   const [allegation, setAllegation] = useState('');
   const [prosecutorStatement, setProsecutorStatement] = useState('');
-  const [evidenceNotes, setEvidenceNotes] = useState('');
+  const [prosecutionPhotos, setProsecutionPhotos] = useState<EvidencePhoto[]>([]);
   const [defense, setDefense] = useState('');
-  const [defenseEvidence, setDefenseEvidence] = useState('');
+  const [defensePhotos, setDefensePhotos] = useState<EvidencePhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [evidenceImages, setEvidenceImages] = useState<CaseEvidenceImage[]>([]);
+  const [pendingPhotoUpload, setPendingPhotoUpload] = useState<PendingPhotoUpload | null>(null);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -109,6 +119,19 @@ export default function CourtScreen() {
             .in('case_id', nextCases.map((item) => item.id))
         : { data: [], error: null };
 
+      let nextEvidenceImages: CaseEvidenceImage[] = [];
+      if (!defenseResult.error) {
+        try {
+          nextEvidenceImages = await loadCaseEvidence(nextCases.map((item) => item.id));
+        } catch (evidenceError) {
+          if (active) {
+            setError(evidenceError instanceof Error ? evidenceError.message : 'Could not load case photos.');
+            setLoading(false);
+          }
+          return;
+        }
+      }
+
       if (active) {
         if (defenseResult.error) {
           setError(defenseResult.error.message);
@@ -117,6 +140,7 @@ export default function CourtScreen() {
           setMembers((profileResult.data ?? []).map((profile) => ({ user_id: profile.id, display_name: profile.display_name })));
           setCases(nextCases);
           setDefenses(defenseResult.data ?? []);
+          setEvidenceImages(nextEvidenceImages);
         }
         setLoading(false);
       }
@@ -141,28 +165,67 @@ export default function CourtScreen() {
 
   async function fileCase() {
     if (!userId || !accusedId || !allegation.trim() || !prosecutorStatement.trim()) return;
+    const photosToUpload = prosecutionPhotos;
     setBusy(true);
     setError(null);
     setNotice(null);
-    const { error: insertError } = await supabase.from('cases').insert({
+    const { data: createdCase, error: insertError } = await supabase.from('cases').insert({
       household_id: household.id,
       reporter_id: userId,
       accused_id: accusedId,
       charge,
       allegation: allegation.trim(),
       prosecutor_statement: prosecutorStatement.trim(),
-      evidence_notes: evidenceNotes.trim(),
-    });
+    }).select('id').single();
     if (insertError) {
       setError(insertError.message);
     } else {
       setAllegation('');
       setProsecutorStatement('');
-      setEvidenceNotes('');
+      setProsecutionPhotos([]);
+      if (photosToUpload.length) {
+        try {
+          await uploadCaseEvidence({
+            caseId: createdCase.id,
+            householdId: household.id,
+            userId,
+            side: 'prosecution',
+            photos: photosToUpload,
+          });
+        } catch {
+          setPendingPhotoUpload({ caseId: createdCase.id, photos: photosToUpload });
+          setNotice('The notice was filed, but its photos did not upload. Retry the photo upload below.');
+          setReload((value) => value + 1);
+          setBusy(false);
+          return;
+        }
+      }
       setNotice(`Notice sent to ${profileById.get(accusedId) ?? 'your flatmate'}.`);
       setReload((value) => value + 1);
     }
     setBusy(false);
+  }
+
+  async function retryPhotoUpload() {
+    if (!userId || !pendingPhotoUpload) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await uploadCaseEvidence({
+        caseId: pendingPhotoUpload.caseId,
+        householdId: household.id,
+        userId,
+        side: 'prosecution',
+        photos: pendingPhotoUpload.photos,
+      });
+      setPendingPhotoUpload(null);
+      setNotice('Photo evidence was added to the case.');
+      setReload((value) => value + 1);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Could not upload case photos.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function postDefense(caseId: string) {
@@ -170,17 +233,36 @@ export default function CourtScreen() {
     setBusy(true);
     setError(null);
     setNotice(null);
+    try {
+      await uploadCaseEvidence({
+        caseId,
+        householdId: household.id,
+        userId,
+        side: 'defense',
+        photos: defensePhotos,
+      });
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Could not upload defense photos.');
+      setBusy(false);
+      return;
+    }
     const { error: defenseError } = await supabase.from('case_defenses').insert({
       case_id: caseId,
       defendant_id: userId,
       response: defense.trim(),
-      evidence_notes: defenseEvidence.trim(),
     });
     if (defenseError) {
       setError(defenseError.message);
+      if (defensePhotos.length) {
+        try {
+          await removeCaseEvidence(caseId, 'defense', userId);
+        } catch {
+          setError(`${defenseError.message} Some uploaded photos could not be removed; refresh the case before retrying.`);
+        }
+      }
     } else {
       setDefense('');
-      setDefenseEvidence('');
+      setDefensePhotos([]);
       setNotice('Your defense has been added to the case. It is now ready for the AI Judge.');
       setReload((value) => value + 1);
     }
@@ -215,6 +297,13 @@ export default function CourtScreen() {
 
       {error ? <Card style={styles.errorCard}><Text style={styles.errorText}>{error}</Text></Card> : null}
       {notice ? <Card style={styles.noticeCard}><Text style={styles.noticeText}>{notice}</Text></Card> : null}
+      {pendingPhotoUpload ? (
+        <Card style={styles.readyCard}>
+          <Text style={styles.cardTitle}>Photos still need uploading</Text>
+          <Text style={styles.bodyText}>{pendingPhotoUpload.photos.length} photo(s) are waiting to be attached to your filed notice.</Text>
+          <ActionButton disabled={busy} label={busy ? 'Uploading…' : 'Retry photo upload'} onPress={() => { void retryPhotoUpload(); }} />
+        </Card>
+      ) : null}
 
       {myPendingCase ? (
         <View style={styles.sectionBlock}>
@@ -222,6 +311,7 @@ export default function CourtScreen() {
           <CaseCard
             item={myPendingCase}
             defenses={defenses}
+            evidenceImages={evidenceImages}
             nameFor={(id) => profileById.get(id) ?? 'Flatmate'}
           />
           <Card style={styles.formCard}>
@@ -235,7 +325,7 @@ export default function CourtScreen() {
               <>
                 <Text style={styles.cardTitle}>Post your defense</Text>
                 <FormField label="Your response" multiline onChangeText={setDefense} placeholder="Explain your side of the situation." value={defense} />
-                <FormField label="Supporting details (optional)" multiline onChangeText={setDefenseEvidence} placeholder="Add any context the AI Judge should consider." value={defenseEvidence} />
+                <EvidencePhotoPicker photos={defensePhotos} onChange={setDefensePhotos} onError={setError} disabled={busy} />
                 <ActionButton disabled={busy || !defense.trim()} label={busy ? 'Saving…' : 'Post my defense'} onPress={() => { void postDefense(myPendingCase.id); }} />
               </>
             )}
@@ -248,7 +338,7 @@ export default function CourtScreen() {
           <Pill tone="green">READY FOR AI</Pill>
           <Text style={styles.cardTitle}>Both sides are on the record</Text>
           <Text style={styles.bodyText}>No verdict has been issued. The server-side AI Judge is the next connection needed for a final ruling.</Text>
-          <CaseCard item={myReadyCase} defenses={defenses} nameFor={(id) => profileById.get(id) ?? 'Flatmate'} />
+          <CaseCard item={myReadyCase} defenses={defenses} evidenceImages={evidenceImages} nameFor={(id) => profileById.get(id) ?? 'Flatmate'} />
         </Card>
       ) : null}
 
@@ -293,7 +383,7 @@ export default function CourtScreen() {
               </View>
               <FormField label="Allegation" onChangeText={setAllegation} placeholder="What happened?" value={allegation} />
               <FormField label="Your statement" multiline onChangeText={setProsecutorStatement} placeholder="Explain the context and why you are filing." value={prosecutorStatement} />
-              <FormField label="Evidence details (optional)" multiline onChangeText={setEvidenceNotes} placeholder="Describe any supporting information. Photo uploads can be added later." value={evidenceNotes} />
+              <EvidencePhotoPicker photos={prosecutionPhotos} onChange={setProsecutionPhotos} onError={setError} disabled={busy} />
               <ActionButton
                 disabled={busy || !allegation.trim() || !prosecutorStatement.trim()}
                 label={busy ? 'Sending…' : `Send notice to ${profileById.get(accusedId)?.split(' ')[0] ?? 'flatmate'}`}
@@ -313,7 +403,7 @@ export default function CourtScreen() {
       <View style={styles.sectionBlock}>
         <SectionHeading title="Household cases" detail={`${cases.length} total`} />
         {cases.length ? cases.map((item) => (
-          <CaseCard key={item.id} item={item} defenses={defenses} nameFor={(id) => profileById.get(id) ?? 'Flatmate'} />
+          <CaseCard key={item.id} item={item} defenses={defenses} evidenceImages={evidenceImages} nameFor={(id) => profileById.get(id) ?? 'Flatmate'} />
         )) : (
           <Card><Text style={styles.bodyText}>No cases have been filed in this household.</Text></Card>
         )}
@@ -325,13 +415,17 @@ export default function CourtScreen() {
 function CaseCard({
   item,
   defenses,
+  evidenceImages,
   nameFor,
 }: {
   item: CourtCase;
   defenses: Defense[];
+  evidenceImages: CaseEvidenceImage[];
   nameFor: (id: string) => string;
 }) {
   const defense = defenses.find((entry) => entry.case_id === item.id);
+  const prosecutionPhotos = evidenceImages.filter((image) => image.case_id === item.id && image.evidence_side === 'prosecution');
+  const defensePhotos = evidenceImages.filter((image) => image.case_id === item.id && image.evidence_side === 'defense');
   const statusText = item.status === 'awaiting_defense'
     ? 'AWAITING DEFENSE'
     : item.status === 'ready_for_judgment'
@@ -351,16 +445,37 @@ function CaseCard({
       <Text style={styles.statementLabel}>PROSECUTION</Text>
       <Text style={styles.bodyText}>{item.prosecutor_statement}</Text>
       {item.evidence_notes ? <Text style={styles.bodyText}>Evidence: {item.evidence_notes}</Text> : null}
+      <StoredEvidencePhotos label="Prosecution photos" photos={prosecutionPhotos} />
       {defense ? (
         <View style={styles.defenseBlock}>
           <Text style={styles.statementLabel}>DEFENSE · {nameFor(defense.defendant_id)}</Text>
           <Text style={styles.bodyText}>{defense.response}</Text>
           {defense.evidence_notes ? <Text style={styles.bodyText}>Supporting details: {defense.evidence_notes}</Text> : null}
+          <StoredEvidencePhotos label="Defense photos" photos={defensePhotos} />
         </View>
       ) : null}
       {item.verdict_summary ? <Text style={styles.bodyText}>Verdict: {item.verdict_summary}</Text> : null}
       {item.punishment_details ? <Text style={styles.punishmentText}>Punishment: {item.punishment_details}</Text> : null}
     </Card>
+  );
+}
+
+function StoredEvidencePhotos({ label, photos }: { label: string; photos: CaseEvidenceImage[] }) {
+  if (!photos.length) return null;
+  return (
+    <View style={styles.storedPhotosBlock}>
+      <Text style={styles.statementLabel}>{label.toUpperCase()}</Text>
+      <View style={styles.storedPhotos}>
+        {photos.map((photo, index) => (
+          <Image
+            key={photo.id}
+            accessibilityLabel={`${label}, photo ${index + 1}`}
+            source={{ uri: photo.signed_url }}
+            style={styles.storedPhoto}
+          />
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -410,6 +525,9 @@ const styles = StyleSheet.create({
   statementLabel: { color: Palette.muted, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
   bodyText: { color: Palette.muted, fontSize: 11, lineHeight: 17 },
   defenseBlock: { gap: 6, padding: 11, borderRadius: 13, backgroundColor: Palette.forestSoft },
+  storedPhotosBlock: { gap: 6 },
+  storedPhotos: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  storedPhoto: { width: 104, height: 88, borderRadius: 12, backgroundColor: Palette.line },
   punishmentText: { color: Palette.forest, fontSize: 11, fontWeight: '800' },
   readyCard: { gap: 10, borderColor: '#C9DED2', backgroundColor: '#F3F8F4' },
   cardTitle: { color: Palette.ink, fontSize: 15, fontWeight: '900' },

@@ -248,7 +248,7 @@ export default function InfoScreen() {
 
       <Card style={styles.footerCard}>
         <Text style={styles.footerTitle}>Evidence privacy</Text>
-        <Text style={styles.footerText}>Photo uploads are not connected yet. Case statements and defenses are visible to household members; evidence retention will be configured when uploads are added.</Text>
+        <Text style={styles.footerText}>Photos are stored in private household case storage. Signed viewing links expire after one hour; automatic photo deletion is not configured yet.</Text>
       </Card>
     </Screen>
   );

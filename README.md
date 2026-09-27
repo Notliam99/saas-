@@ -1,2 +1,3 @@
-#About
+# About
+
 A user friendly court system for flats. If someone is acting selfishly, like leaving dishes in the sink, skipping chores etc, you can reprimand them. The app allows you to hold a trail against the offender, you can present information on the crime like text or a photo giving context to the situation and the AI called "judgy" will make it's verdict. A prosecutor will either be found guilty, not guilty, mistrial and punished accordingly.
